@@ -45,7 +45,7 @@
           </div>
           <div class="instructions__step">
             <span class="instructions__num">5</span>
-            <span>Complete 5 rounds to see your stats and performance rating</span>
+            <span>Complete 5 rounds to see your final performance rating</span>
           </div>
         </div>
       </div>
@@ -68,7 +68,7 @@
 
       <!-- Stats panel -->
       <div class="stats" id="stats-panel">
-        <div class="stats__notice" id="stats-notice">Complete 5 attempts to see statistics</div>
+        <div class="stats__notice" id="stats-notice">Round 0 of 5</div>
         <div class="stats__grid" id="stats-grid">
           <div class="stats__item">
             <div class="stats__label">Average</div>
@@ -534,6 +534,18 @@
       color: var(--accent-success);
     }
 
+    #app.state-complete .result-display__value {
+      color: var(--accent-success);
+    }
+
+    #app.state-complete .result-display__unit {
+      color: var(--accent-success);
+    }
+
+    #app.state-complete .prompt-text {
+      color: var(--text-secondary);
+    }
+
     /* =========================================================
        6. ANIMATIONS
        ========================================================= */
@@ -808,6 +820,10 @@
           case 'stimulus':
             registerReaction();
             break;
+          case 'complete':
+            /* Test is finished — ignore all clicks.
+               User must hit Reset to start a new session. */
+            break;
         }
       }
 
@@ -856,13 +872,21 @@
         AppState.results.push({ ms: rounded, falseStart: false, timestamp: Date.now() });
 
         setResultDisplay(rounded.toString(), 'result');
-        dom.promptText.textContent = 'Click to go again';
 
         recalculateStats();
-        updateStats();
-        updateEvaluation();
         updateHistory();
-        setPhase('result');
+
+        /* Check if we've hit 5 valid attempts — if so, end the test */
+        if (AppState.stats.validCount >= 5) {
+          updateStats();
+          updateEvaluation();
+          dom.promptText.textContent = 'Test complete — reset to try again';
+          setPhase('complete');
+        } else {
+          updateStats();
+          dom.promptText.textContent = 'Click to go again';
+          setPhase('result');
+        }
       }
 
       function recalculateStats() {
@@ -896,9 +920,7 @@
         } else {
           dom.statsNotice.style.display = '';
           dom.statsNotice.textContent =
-            (5 - AppState.stats.validCount) + ' more attempt' +
-            (5 - AppState.stats.validCount === 1 ? '' : 's') +
-            ' until statistics';
+            'Round ' + AppState.stats.validCount + ' of 5';
           dom.statsGrid.style.display = 'none';
         }
       }
@@ -976,7 +998,8 @@
         waiting:        new THREE.Color(0x3A3F4A),
         stimulus:       new THREE.Color(0x4A9EFF),
         'false-start':  new THREE.Color(0xE05555),
-        result:         new THREE.Color(0x4CAF7D)
+        result:         new THREE.Color(0x4CAF7D),
+        complete:       new THREE.Color(0x4CAF7D)
       };
 
       let currentColor = new THREE.Color(0x2E3138);
