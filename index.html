@@ -11,23 +11,30 @@
 </head>
 <body>
 
-  <!-- Three.js renders behind everything — this canvas is injected by VisualLayer -->
+  <!-- Three.js canvas — fullscreen, visually dominant, non-interactive.
+       pointer-events:none ensures all clicks pass through to #app. -->
   <div id="canvas-container"></div>
 
+  <!-- UI shell — the entire viewport is clickable for game input.
+       All text/controls live in a side panel, leaving the center
+       clear for the 3D scene to be the visual hero. -->
   <div id="app">
-    <header class="header">
-      <div class="header__title">REACTION TIMER</div>
-      <div class="header__subtitle">Measure your response latency</div>
-    </header>
 
-    <main class="main">
-      <!-- The hero element: reaction time display -->
+    <div class="side-panel" id="side-panel">
+      <header class="header">
+        <div class="header__title">REACTION TIMER</div>
+        <div class="header__subtitle">Measure your response latency</div>
+      </header>
+
+      <!-- Reaction time readout -->
       <div class="result-display" id="result-display">
         <div class="result-display__value" id="result-value">---</div>
         <div class="result-display__unit" id="result-unit">ms</div>
       </div>
 
       <div class="prompt-text" id="prompt-text">Click anywhere to start</div>
+
+      <div class="divider"></div>
 
       <!-- Stats panel — only meaningful after 5+ attempts -->
       <div class="stats" id="stats-panel">
@@ -57,11 +64,12 @@
         <div class="history__title">Session Log</div>
         <div class="history__list" id="history-list"></div>
       </div>
-    </main>
 
-    <footer class="footer">
-      <button class="reset-btn" id="reset-btn">Reset Session</button>
-    </footer>
+      <div class="panel-footer">
+        <button class="reset-btn" id="reset-btn">Reset Session</button>
+      </div>
+    </div>
+
   </div>
 
   <style>
@@ -82,6 +90,7 @@
       --radius: 8px;
       --transition-fast: 150ms ease;
       --transition-med: 300ms ease;
+      --panel-width: 340px;
     }
 
     /* =========================================================
@@ -96,7 +105,7 @@
     html, body {
       width: 100%;
       height: 100%;
-      overflow-x: hidden;
+      overflow: hidden;
       background: var(--bg);
       color: var(--text-primary);
       font-family: var(--font-ui);
@@ -106,6 +115,8 @@
 
     /* =========================================================
        3. LAYOUT
+       Desktop: fullscreen 3D + fixed right side panel.
+       Mobile (<768px): 3D on top + bottom sheet panel.
        ========================================================= */
     #canvas-container {
       position: fixed;
@@ -124,136 +135,129 @@
     }
 
     #app {
-      position: relative;
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
       z-index: 1;
-      min-height: 100vh;
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      padding: 2rem 1.5rem;
       cursor: pointer;
       user-select: none;
       -webkit-user-select: none;
     }
 
-    .header {
-      text-align: center;
-      margin-bottom: 2rem;
-    }
-
-    .main {
-      flex: 1;
+    .side-panel {
+      position: absolute;
+      top: 0;
+      right: 0;
+      width: var(--panel-width);
+      height: 100%;
+      background: rgba(15, 17, 23, 0.92);
+      border-left: 1px solid var(--border);
       display: flex;
       flex-direction: column;
-      align-items: center;
-      width: 100%;
-      max-width: 480px;
+      padding: 2rem 1.5rem;
+      overflow-y: auto;
+      backdrop-filter: blur(12px);
+      -webkit-backdrop-filter: blur(12px);
     }
 
-    .footer {
-      margin-top: 2rem;
-      padding-top: 1.5rem;
-      border-top: 1px solid var(--border);
+    .divider {
       width: 100%;
-      max-width: 480px;
-      display: flex;
-      justify-content: center;
+      height: 1px;
+      background: var(--border);
+      margin: 0.25rem 0 1.25rem;
     }
 
     /* =========================================================
        4. COMPONENTS
        ========================================================= */
+    .header {
+      margin-bottom: 1.5rem;
+    }
 
-    /* Header */
     .header__title {
-      font-size: 0.75rem;
+      font-size: 0.7rem;
       font-weight: 600;
       letter-spacing: 0.2em;
       color: var(--text-secondary);
     }
 
     .header__subtitle {
-      font-size: 0.8125rem;
+      font-size: 0.75rem;
       color: var(--text-secondary);
       margin-top: 0.25rem;
-      opacity: 0.6;
+      opacity: 0.5;
     }
 
-    /* Result display — the hero element */
     .result-display {
       display: flex;
       align-items: baseline;
-      justify-content: center;
-      gap: 0.5rem;
-      margin: 1.5rem 0 1rem;
+      gap: 0.375rem;
+      margin-bottom: 0.375rem;
       transition: color var(--transition-med);
     }
 
     .result-display__value {
       font-family: var(--font-mono);
-      font-size: clamp(3.5rem, 12vw, 6rem);
+      font-size: 3rem;
       font-weight: 700;
       line-height: 1;
-      /* JetBrains Mono has tabular figures by default —
-         this prevents layout shift as digits change */
       font-variant-numeric: tabular-nums;
       letter-spacing: -0.02em;
     }
 
     .result-display__unit {
       font-family: var(--font-mono);
-      font-size: 1.25rem;
+      font-size: 1rem;
       font-weight: 400;
       color: var(--text-secondary);
       transition: color var(--transition-med);
     }
 
-    /* Prompt text — instruction area below the hero number */
     .prompt-text {
-      font-size: 1rem;
+      font-size: 0.875rem;
       font-weight: 500;
       color: var(--text-secondary);
-      text-align: center;
-      min-height: 1.5rem;
+      min-height: 1.25rem;
       transition: color var(--transition-med);
-      margin-bottom: 2.5rem;
+      margin-bottom: 1.25rem;
     }
 
-    /* Stats panel */
     .stats {
       width: 100%;
       background: var(--surface);
       border: 1px solid var(--border);
       border-radius: var(--radius);
-      padding: 1.25rem;
-      margin-bottom: 1.5rem;
+      padding: 1rem;
+      margin-bottom: 1.25rem;
     }
 
     .stats__notice {
-      font-size: 0.8125rem;
+      font-size: 0.75rem;
       color: var(--text-secondary);
       text-align: center;
     }
 
     .stats__grid {
       display: none;
-      grid-template-columns: repeat(4, 1fr);
+      grid-template-columns: repeat(2, 1fr);
       gap: 0.75rem;
       text-align: center;
     }
 
     .stats__label {
-      font-size: 0.6875rem;
+      font-size: 0.625rem;
       font-weight: 500;
       text-transform: uppercase;
       letter-spacing: 0.08em;
       color: var(--text-secondary);
-      margin-bottom: 0.25rem;
+      margin-bottom: 0.125rem;
     }
 
     .stats__value {
       font-family: var(--font-mono);
-      font-size: 1.125rem;
+      font-size: 1rem;
       font-weight: 600;
       font-variant-numeric: tabular-nums;
     }
@@ -266,26 +270,27 @@
       color: var(--accent-error);
     }
 
-    /* History log */
     .history {
       width: 100%;
       display: none;
+      flex: 1;
+      min-height: 0;
     }
 
     .history__title {
-      font-size: 0.6875rem;
+      font-size: 0.625rem;
       font-weight: 600;
       text-transform: uppercase;
       letter-spacing: 0.12em;
       color: var(--text-secondary);
-      margin-bottom: 0.75rem;
+      margin-bottom: 0.5rem;
     }
 
     .history__list {
       display: flex;
       flex-direction: column;
-      gap: 0.375rem;
-      max-height: 200px;
+      gap: 0.3rem;
+      max-height: 180px;
       overflow-y: auto;
     }
 
@@ -293,17 +298,17 @@
       display: flex;
       justify-content: space-between;
       align-items: center;
-      padding: 0.5rem 0.75rem;
+      padding: 0.375rem 0.625rem;
       background: var(--surface);
       border: 1px solid var(--border);
       border-radius: calc(var(--radius) * 0.5);
-      font-size: 0.8125rem;
+      font-size: 0.75rem;
     }
 
     .history__item-index {
       color: var(--text-secondary);
       font-family: var(--font-mono);
-      font-size: 0.75rem;
+      font-size: 0.6875rem;
     }
 
     .history__item-value {
@@ -316,17 +321,23 @@
       color: var(--accent-error);
     }
 
-    /* Reset button */
+    .panel-footer {
+      margin-top: auto;
+      padding-top: 1rem;
+      border-top: 1px solid var(--border);
+    }
+
     .reset-btn {
       font-family: var(--font-ui);
-      font-size: 0.8125rem;
+      font-size: 0.75rem;
       font-weight: 500;
       color: var(--text-secondary);
       background: transparent;
       border: 1px solid var(--border);
       border-radius: var(--radius);
-      padding: 0.5rem 1.25rem;
+      padding: 0.5rem 1rem;
       cursor: pointer;
+      width: 100%;
       transition: color var(--transition-fast), border-color var(--transition-fast);
     }
 
@@ -336,7 +347,7 @@
     }
 
     /* =========================================================
-       5. STATE VARIANTS — applied to #app via JS
+       5. STATE VARIANTS
        ========================================================= */
     #app.state-waiting .prompt-text {
       color: var(--accent-stimulus);
@@ -378,25 +389,55 @@
       animation: pulse-subtle 1.8s ease-in-out infinite;
     }
 
-    /* Scrollbar styling for history */
-    .history__list::-webkit-scrollbar {
+    .history__list::-webkit-scrollbar,
+    .side-panel::-webkit-scrollbar {
       width: 4px;
     }
 
-    .history__list::-webkit-scrollbar-track {
+    .history__list::-webkit-scrollbar-track,
+    .side-panel::-webkit-scrollbar-track {
       background: transparent;
     }
 
-    .history__list::-webkit-scrollbar-thumb {
+    .history__list::-webkit-scrollbar-thumb,
+    .side-panel::-webkit-scrollbar-thumb {
       background: var(--border);
       border-radius: 2px;
     }
 
-    /* Responsive adjustments */
+    /* =========================================================
+       7. RESPONSIVE — mobile bottom sheet
+       ========================================================= */
+    @media (max-width: 768px) {
+      .side-panel {
+        top: auto;
+        bottom: 0;
+        left: 0;
+        right: 0;
+        width: 100%;
+        height: 55%;
+        border-left: none;
+        border-top: 1px solid var(--border);
+        padding: 1.25rem;
+      }
+
+      .result-display__value {
+        font-size: 2.5rem;
+      }
+
+      .history__list {
+        max-height: 120px;
+      }
+    }
+
     @media (max-width: 480px) {
-      .stats__grid {
-        grid-template-columns: repeat(2, 1fr);
-        gap: 1rem;
+      .side-panel {
+        height: 60%;
+        padding: 1rem;
+      }
+
+      .result-display__value {
+        font-size: 2.25rem;
       }
     }
   </style>
@@ -404,59 +445,23 @@
   <script>
     /* ===========================================================
        1. STATE OBJECT
-       Single source of truth for all application state.
-       No global variables outside this object.
        =========================================================== */
     const AppState = {
-      /* Game phase: 'idle' | 'waiting' | 'stimulus' | 'false-start' | 'result' */
       phase: 'idle',
-
-      /* Timestamp (performance.now) when the stimulus was shown.
-         We use performance.now() because it provides sub-millisecond
-         precision from a monotonic clock — Date.now() uses the system
-         clock which can be adjusted and only guarantees ms resolution. */
       stimulusTimestamp: null,
-
-      /* The random delay for the current round, in ms.
-         Computed once when entering the 'waiting' phase and never
-         recomputed — prevents any possibility of the delay changing
-         mid-round due to a re-render or state check. */
       currentDelay: null,
-
-      /* Handle to the stimulus setTimeout so we can cancel it on
-         false starts or resets without orphaning timers. */
       stimulusTimeoutId: null,
-
-      /* Array of result objects: { ms: number|null, falseStart: boolean, timestamp: number }
-         null ms with falseStart=true indicates a false start attempt. */
       results: [],
-
-      /* Computed stats — recalculated on every valid result.
-         Only displayed when validCount >= 5 (see spec note:
-         5 is a UX threshold, not a statistical one — the sample
-         is too small for real confidence intervals regardless). */
-      stats: {
-        average: null,
-        best: null,
-        worst: null,
-        validCount: 0
-      }
+      stats: { average: null, best: null, worst: null, validCount: 0 }
     };
 
     /* ===========================================================
        2. GAME ENGINE IIFE
-       All game logic, timing, state transitions, and DOM updates.
-       No Three.js references. Communicates with VisualLayer
-       through a callback (onPhaseChange).
        =========================================================== */
     const GameEngine = (function () {
-      /* --- DOM references (cached once at init) --- */
       let dom = {};
-
-      /* --- Callback to notify VisualLayer of phase changes --- */
       let onPhaseChange = null;
 
-      /* ---- Initialisation ---- */
       function init(phaseChangeCallback) {
         onPhaseChange = phaseChangeCallback;
 
@@ -475,40 +480,26 @@
         dom.historyList = document.getElementById('history-list');
         dom.resetBtn = document.getElementById('reset-btn');
 
-        /* Bind interaction areas.
-           The entire #app is the click target for game actions.
-           The reset button gets its own handler and stops propagation
-           so it doesn't trigger a game action. */
         dom.app.addEventListener('click', handleAppClick);
         dom.app.addEventListener('keydown', handleKeyDown);
         dom.resetBtn.addEventListener('click', handleReset);
 
-        /* Make #app focusable for keyboard input */
         dom.app.setAttribute('tabindex', '0');
         dom.app.focus();
 
         setPhase('idle');
       }
 
-      /* ---- Phase transition ---- */
       function setPhase(newPhase) {
         AppState.phase = newPhase;
-
-        /* Strip all state classes, apply the new one */
         dom.app.className = '';
         if (newPhase !== 'idle') {
           dom.app.classList.add('state-' + newPhase);
         }
-
-        /* Notify visual layer */
-        if (onPhaseChange) {
-          onPhaseChange(newPhase);
-        }
+        if (onPhaseChange) onPhaseChange(newPhase);
       }
 
-      /* ---- Input handlers ---- */
       function handleAppClick(event) {
-        /* Prevent reset button clicks from triggering game logic */
         if (event.target.closest('#reset-btn')) return;
         advanceGame();
       }
@@ -523,19 +514,16 @@
       function handleReset(event) {
         event.stopPropagation();
 
-        /* Clear any pending stimulus timer */
         if (AppState.stimulusTimeoutId !== null) {
           clearTimeout(AppState.stimulusTimeoutId);
           AppState.stimulusTimeoutId = null;
         }
 
-        /* Reset all state */
         AppState.results = [];
         AppState.stats = { average: null, best: null, worst: null, validCount: 0 };
         AppState.stimulusTimestamp = null;
         AppState.currentDelay = null;
 
-        /* Reset DOM */
         dom.resultValue.textContent = '---';
         dom.promptText.textContent = 'Click anywhere to start';
         dom.statsNotice.style.display = '';
@@ -551,7 +539,6 @@
         dom.app.focus();
       }
 
-      /* ---- Core game logic ---- */
       function advanceGame() {
         switch (AppState.phase) {
           case 'idle':
@@ -559,11 +546,9 @@
           case 'result':
             startWaiting();
             break;
-
           case 'waiting':
             registerFalseStart();
             break;
-
           case 'stimulus':
             registerReaction();
             break;
@@ -571,11 +556,8 @@
       }
 
       function startWaiting() {
-        /* Compute the random delay ONCE for this round.
-           Range: 2000–5000ms inclusive.
-           Math.random() returns [0, 1), so the effective max is
-           just under 5000ms. This is acceptable — we don't need
-           exact endpoint inclusion for a perceptual delay. */
+        /* Random delay computed ONCE: 2000–5000ms.
+           Stored in state so it's never recomputed mid-round. */
         AppState.currentDelay = 2000 + Math.random() * 3000;
         AppState.stimulusTimestamp = null;
 
@@ -584,20 +566,13 @@
 
         setPhase('waiting');
 
-        /* Schedule stimulus presentation.
-           We store the timeout ID so it can be cancelled on false
-           start or reset — orphaned timers would fire showStimulus
-           in the wrong game phase. */
+        /* Store timeout ID to cancel on false start or reset */
         AppState.stimulusTimeoutId = setTimeout(showStimulus, AppState.currentDelay);
       }
 
       function showStimulus() {
         AppState.stimulusTimeoutId = null;
-
-        /* Record the high-resolution timestamp at stimulus onset.
-           This is the reference point for reaction time calculation.
-           performance.now() gives us a DOMHighResTimeStamp in ms
-           with microsecond precision — critical for sub-10ms accuracy. */
+        /* performance.now() — monotonic, sub-ms precision */
         AppState.stimulusTimestamp = performance.now();
 
         dom.resultValue.textContent = '!!!';
@@ -607,19 +582,12 @@
       }
 
       function registerFalseStart() {
-        /* Cancel the pending stimulus timer.
-           Without this, showStimulus would fire after we've already
-           moved to the false-start phase, corrupting the state machine. */
         if (AppState.stimulusTimeoutId !== null) {
           clearTimeout(AppState.stimulusTimeoutId);
           AppState.stimulusTimeoutId = null;
         }
 
-        AppState.results.push({
-          ms: null,
-          falseStart: true,
-          timestamp: Date.now()
-        });
+        AppState.results.push({ ms: null, falseStart: true, timestamp: Date.now() });
 
         dom.resultValue.textContent = 'TOO EARLY';
         dom.promptText.textContent = 'False start — click to try again';
@@ -629,18 +597,12 @@
       }
 
       function registerReaction() {
-        /* Calculate reaction time as the delta between now and
-           when the stimulus was shown. Both values come from
-           performance.now() so we get a monotonic, high-resolution
-           measurement unaffected by system clock adjustments. */
-        const reactionMs = performance.now() - AppState.stimulusTimestamp;
-        const rounded = Math.round(reactionMs);
+        /* Delta from two performance.now() calls — monotonic,
+           unaffected by system clock drift */
+        var reactionMs = performance.now() - AppState.stimulusTimestamp;
+        var rounded = Math.round(reactionMs);
 
-        AppState.results.push({
-          ms: rounded,
-          falseStart: false,
-          timestamp: Date.now()
-        });
+        AppState.results.push({ ms: rounded, falseStart: false, timestamp: Date.now() });
 
         dom.resultValue.textContent = rounded.toString();
         dom.promptText.textContent = 'Click to go again';
@@ -651,9 +613,8 @@
         setPhase('result');
       }
 
-      /* ---- Stats computation ---- */
       function recalculateStats() {
-        const valid = AppState.results.filter(function (r) { return !r.falseStart; });
+        var valid = AppState.results.filter(function (r) { return !r.falseStart; });
         AppState.stats.validCount = valid.length;
 
         if (valid.length === 0) {
@@ -663,7 +624,7 @@
           return;
         }
 
-        const times = valid.map(function (r) { return r.ms; });
+        var times = valid.map(function (r) { return r.ms; });
         AppState.stats.best = Math.min.apply(null, times);
         AppState.stats.worst = Math.max.apply(null, times);
         AppState.stats.average = Math.round(
@@ -671,14 +632,10 @@
         );
       }
 
-      /* ---- DOM updates ---- */
       function updateStats() {
         dom.statCount.textContent = AppState.stats.validCount.toString();
 
-        /* Only show computed stats after 5 valid attempts.
-           This is a UX threshold — with <5 samples the numbers
-           fluctuate too much to be useful to the user, but calling
-           it "statistically meaningful" would be overclaiming. */
+        /* 5-attempt threshold: a UX decision, not a statistical one */
         if (AppState.stats.validCount >= 5) {
           dom.statsNotice.style.display = 'none';
           dom.statsGrid.style.display = 'grid';
@@ -698,17 +655,17 @@
       function updateHistory() {
         dom.historyPanel.style.display = 'block';
 
-        const result = AppState.results[AppState.results.length - 1];
-        const index = AppState.results.length;
+        var result = AppState.results[AppState.results.length - 1];
+        var index = AppState.results.length;
 
-        const item = document.createElement('div');
+        var item = document.createElement('div');
         item.className = 'history__item';
 
-        const indexEl = document.createElement('span');
+        var indexEl = document.createElement('span');
         indexEl.className = 'history__item-index';
         indexEl.textContent = '#' + index;
 
-        const valueEl = document.createElement('span');
+        var valueEl = document.createElement('span');
         valueEl.className = 'history__item-value';
 
         if (result.falseStart) {
@@ -720,48 +677,46 @@
 
         item.appendChild(indexEl);
         item.appendChild(valueEl);
-
-        /* Prepend so newest is on top */
         dom.historyList.insertBefore(item, dom.historyList.firstChild);
       }
 
-      /* Public API */
       return { init: init };
     })();
 
 
     /* ===========================================================
        3. VISUAL LAYER IIFE
-       All Three.js logic. Receives phase change notifications
-       from GameEngine. No game logic here.
+       The 3D scene is now the visual hero. The camera is offset
+       so the icosahedron appears centered in the open viewport
+       area (left of the side panel on desktop, above the bottom
+       sheet on mobile).
        =========================================================== */
     const VisualLayer = (function () {
       let scene, camera, renderer;
-      let meshes = [];
-      let clock;
+      let centralMesh;
+      let orbiters = [];
+      let elapsed = 0;
 
-      /* Colour targets — we lerp toward these based on game phase */
       const COLORS = {
-        idle:        new THREE.Color(0x2E3138),
-        waiting:     new THREE.Color(0x3A3F4A),
-        stimulus:    new THREE.Color(0x4A9EFF),
-        'false-start': new THREE.Color(0xE05555),
-        result:      new THREE.Color(0x4CAF7D)
+        idle:           new THREE.Color(0x2E3138),
+        waiting:        new THREE.Color(0x3A3F4A),
+        stimulus:       new THREE.Color(0x4A9EFF),
+        'false-start':  new THREE.Color(0xE05555),
+        result:         new THREE.Color(0x4CAF7D)
       };
 
       let currentColor = new THREE.Color(0x2E3138);
       let targetColor = new THREE.Color(0x2E3138);
 
-      /* Lerp speed — controls how fast colour transitions happen.
-         0.03 gives a smooth ~1s transition at 60fps. */
       const LERP_SPEED = 0.03;
 
-      /* Pulse state for waiting phase */
       let pulseActive = false;
       let pulsePhase = 0;
 
+      const CENTRAL_ROT_SPEED = 0.0015;
+
       function init() {
-        const container = document.getElementById('canvas-container');
+        var container = document.getElementById('canvas-container');
 
         scene = new THREE.Scene();
 
@@ -771,67 +726,106 @@
           0.1,
           1000
         );
-        camera.position.z = 30;
+        camera.position.z = 28;
 
-        renderer = new THREE.WebGLRenderer({
-          antialias: true,
-          alpha: true
-        });
+        renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
         renderer.setSize(window.innerWidth, window.innerHeight);
         renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
         renderer.setClearColor(0x0F1117, 1);
 
         container.appendChild(renderer.domElement);
 
-        clock = new THREE.Clock();
-
-        createGeometry();
+        createCentralShape();
+        createOrbiters();
+        updateSceneCenter();
 
         window.addEventListener('resize', handleResize);
-
         animate();
       }
 
-      function createGeometry() {
-        /* Create a set of wireframe icosahedrons at varying positions
-           and sizes. Wireframe on MeshBasicMaterial is the cleanest
-           approach in r128 — no lighting needed, colour lerps directly
-           on the material. The visual effect on thin lines is subtle
-           but sufficient for the background role. */
-        const geometry = new THREE.IcosahedronGeometry(1, 1);
+      /* Offset the camera so the 3D scene appears centered in the
+         open area (viewport minus side panel), not the full viewport.
+         Without this, the icosahedron would sit half-behind the panel
+         on desktop, which defeats the "3D is the hero" intent. */
+      function updateSceneCenter() {
+        if (window.innerWidth > 768) {
+          var panel = document.getElementById('side-panel');
+          var panelW = panel ? panel.offsetWidth : 340;
+          var openW = window.innerWidth - panelW;
 
-        for (var i = 0; i < 8; i++) {
-          var material = new THREE.MeshBasicMaterial({
+          /* Convert the center of the open area to NDC [-1, 1],
+             then to world-space X at the camera's Z distance.
+             fov/2 = 30deg, so world half-width at z=28 is
+             tan(30) * 28 * aspect. */
+          var openCenterFrac = (openW / 2) / window.innerWidth;
+          var ndcX = openCenterFrac * 2 - 1;
+          var aspect = window.innerWidth / window.innerHeight;
+          var worldHalfW = Math.tan(THREE.MathUtils.degToRad(30)) * 28 * aspect;
+          camera.position.x = -(ndcX * worldHalfW);
+        } else {
+          /* Mobile: panel is at the bottom. Offset camera upward
+             so the scene centers in the top portion. */
+          var openH = window.innerHeight * 0.45;
+          var openCenterYFrac = (openH / 2) / window.innerHeight;
+          var ndcY = openCenterYFrac * 2 - 1;
+          var worldHalfH = Math.tan(THREE.MathUtils.degToRad(30)) * 28;
+          camera.position.x = 0;
+          camera.position.y = -(ndcY * worldHalfH);
+        }
+      }
+
+      function createCentralShape() {
+        /* Prominent wireframe icosahedron. Detail 1 = 80 faces,
+           enough geometry to read as spherical without visual noise.
+           Opacity 0.35 — substantially higher than before since
+           no text overlaps the 3D area anymore. */
+        var geo = new THREE.IcosahedronGeometry(6.5, 1);
+        var mat = new THREE.MeshBasicMaterial({
+          color: currentColor.clone(),
+          wireframe: true,
+          transparent: true,
+          opacity: 0.35
+        });
+
+        centralMesh = new THREE.Mesh(geo, mat);
+        scene.add(centralMesh);
+      }
+
+      function createOrbiters() {
+        var cubeGeo = new THREE.BoxGeometry(1, 1, 1);
+
+        /* Hand-tuned orbit configs: radii, speeds, and inclinations
+           chosen so paths don't overlap and the composition reads
+           as an orbital system at camera.position.z = 28. */
+        var configs = [
+          { radius: 10, speed: 0.30, inc: 0.4,   phase: 0,              s: 0.9,  op: 0.30 },
+          { radius: 12, speed: 0.22, inc: -0.6,  phase: Math.PI * 0.7,  s: 0.65, op: 0.25 },
+          { radius: 9,  speed: 0.40, inc: 0.9,   phase: Math.PI * 1.3,  s: 0.55, op: 0.28 },
+          { radius: 13, speed: 0.18, inc: -0.25, phase: Math.PI * 0.4,  s: 0.75, op: 0.22 },
+          { radius: 11, speed: 0.28, inc: 1.2,   phase: Math.PI * 1.8,  s: 0.5,  op: 0.26 }
+        ];
+
+        for (var i = 0; i < configs.length; i++) {
+          var c = configs[i];
+          var mat = new THREE.MeshBasicMaterial({
             color: currentColor.clone(),
             wireframe: true,
             transparent: true,
-            opacity: 0.12 + Math.random() * 0.08
+            opacity: c.op
           });
 
-          var mesh = new THREE.Mesh(geometry, material);
+          var mesh = new THREE.Mesh(cubeGeo, mat);
+          mesh.scale.set(c.s, c.s, c.s);
 
-          /* Distribute icosahedrons in a loose cloud.
-             Random positions keep the background from looking
-             patterned or intentionally arranged. */
-          mesh.position.set(
-            (Math.random() - 0.5) * 40,
-            (Math.random() - 0.5) * 25,
-            (Math.random() - 0.5) * 20
-          );
-
-          var scale = 1.5 + Math.random() * 3.5;
-          mesh.scale.set(scale, scale, scale);
-
-          /* Store per-mesh rotation speeds for organic motion */
-          mesh.userData.rotSpeedX = (Math.random() - 0.5) * 0.003;
-          mesh.userData.rotSpeedY = (Math.random() - 0.5) * 0.003;
-          mesh.userData.rotSpeedZ = (Math.random() - 0.5) * 0.002;
-
-          /* Store base opacity so pulse can modulate it */
-          mesh.userData.baseOpacity = material.opacity;
+          mesh.userData.orbitRadius = c.radius;
+          mesh.userData.orbitSpeed = c.speed;
+          mesh.userData.inclination = c.inc;
+          mesh.userData.phaseOffset = c.phase;
+          mesh.userData.baseOpacity = c.op;
+          mesh.userData.selfRotSpeed = 0.008 + Math.random() * 0.012;
 
           scene.add(mesh);
-          meshes.push(mesh);
+          orbiters.push(mesh);
         }
       }
 
@@ -845,60 +839,74 @@
         camera.aspect = window.innerWidth / window.innerHeight;
         camera.updateProjectionMatrix();
         renderer.setSize(window.innerWidth, window.innerHeight);
+        updateSceneCenter();
       }
 
       function animate() {
         requestAnimationFrame(animate);
 
-        var dt = clock.getDelta();
+        var now = performance.now() * 0.001;
+        var dt = Math.min(now - elapsed, 0.05);
+        if (dt <= 0) dt = 0.016;
+        elapsed = now;
 
-        /* Linearly interpolate current colour toward target.
-           We lerp per-frame rather than using a CSS transition
-           because the material colour lives in WebGL, not the DOM. */
         currentColor.lerp(targetColor, LERP_SPEED);
 
-        /* Pulse modulation for waiting phase */
         if (pulseActive) {
           pulsePhase += dt * 2.5;
         }
 
-        for (var i = 0; i < meshes.length; i++) {
-          var mesh = meshes[i];
+        /* --- Central icosahedron --- */
+        centralMesh.rotation.x += CENTRAL_ROT_SPEED;
+        centralMesh.rotation.y += CENTRAL_ROT_SPEED * 0.7;
+        centralMesh.material.color.copy(currentColor);
 
-          /* Slow ambient rotation */
-          mesh.rotation.x += mesh.userData.rotSpeedX;
-          mesh.rotation.y += mesh.userData.rotSpeedY;
-          mesh.rotation.z += mesh.userData.rotSpeedZ;
+        if (pulseActive) {
+          var cp = 0.5 + 0.5 * Math.sin(pulsePhase);
+          centralMesh.material.opacity = 0.25 + 0.20 * cp;
+        } else {
+          centralMesh.material.opacity = 0.35;
+        }
 
-          /* Update material colour to the interpolated value */
-          mesh.material.color.copy(currentColor);
+        /* --- Orbiting cubes --- */
+        for (var i = 0; i < orbiters.length; i++) {
+          var orb = orbiters[i];
+          var d = orb.userData;
 
-          /* Pulse opacity during waiting phase */
+          var angle = elapsed * d.orbitSpeed + d.phaseOffset;
+          var r = d.orbitRadius;
+
+          /* Elliptical: X full, Z at 70% for depth */
+          var x = r * Math.cos(angle);
+          var z = r * 0.7 * Math.sin(angle);
+
+          /* Inclination tilts the orbital plane */
+          var cosI = Math.cos(d.inclination);
+          var sinI = Math.sin(d.inclination);
+          orb.position.set(x, z * sinI, z * cosI);
+
+          orb.rotation.x += d.selfRotSpeed;
+          orb.rotation.y += d.selfRotSpeed * 0.6;
+
+          orb.material.color.copy(currentColor);
+
           if (pulseActive) {
-            var pulseFactor = 0.5 + 0.5 * Math.sin(pulsePhase + i * 0.7);
-            mesh.material.opacity = mesh.userData.baseOpacity * (0.6 + 0.4 * pulseFactor);
+            var pf = 0.5 + 0.5 * Math.sin(pulsePhase + i * 0.9);
+            orb.material.opacity = d.baseOpacity * (0.5 + 0.5 * pf);
           } else {
-            mesh.material.opacity = mesh.userData.baseOpacity;
+            orb.material.opacity = d.baseOpacity;
           }
         }
 
         renderer.render(scene, camera);
       }
 
-      /* Public API */
-      return {
-        init: init,
-        onPhaseChange: onPhaseChange
-      };
+      return { init: init, onPhaseChange: onPhaseChange };
     })();
 
 
     /* ===========================================================
        4. BOOT
-       Initialise both modules and wire them together.
-       VisualLayer.onPhaseChange is passed as a callback to
-       GameEngine so the game logic can notify the visual layer
-       without either module importing the other directly.
        =========================================================== */
     (function boot() {
       VisualLayer.init();
