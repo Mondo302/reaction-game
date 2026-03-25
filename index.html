@@ -4,6 +4,8 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Reaction Timer</title>
+  <!-- Inline SVG favicon — no external file needed, stays single-file compliant -->
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><circle cx='50' cy='50' r='45' fill='none' stroke='%234A9EFF' stroke-width='6'/><circle cx='50' cy='50' r='8' fill='%234A9EFF'/></svg>">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;600;700&display=swap" rel="stylesheet">
@@ -11,32 +13,60 @@
 </head>
 <body>
 
-  <!-- Three.js canvas — fullscreen, visually dominant, non-interactive.
-       pointer-events:none ensures all clicks pass through to #app. -->
   <div id="canvas-container"></div>
 
-  <!-- UI shell — the entire viewport is clickable for game input.
-       All text/controls live in a side panel, leaving the center
-       clear for the 3D scene to be the visual hero. -->
   <div id="app">
-
     <div class="side-panel" id="side-panel">
+
       <header class="header">
         <div class="header__title">REACTION TIMER</div>
         <div class="header__subtitle">Measure your response latency</div>
       </header>
 
+      <!-- Instructions — shown on load, hidden after first click -->
+      <div class="instructions" id="instructions">
+        <div class="instructions__title">How it works</div>
+        <div class="instructions__steps">
+          <div class="instructions__step">
+            <span class="instructions__num">1</span>
+            <span>Click anywhere or press Space to begin a round</span>
+          </div>
+          <div class="instructions__step">
+            <span class="instructions__num">2</span>
+            <span>Wait for the signal — the display will flash <strong>!!!</strong> and turn blue</span>
+          </div>
+          <div class="instructions__step">
+            <span class="instructions__num">3</span>
+            <span>Click as fast as you can when you see the signal</span>
+          </div>
+          <div class="instructions__step">
+            <span class="instructions__num">4</span>
+            <span>Don't click early — that's a false start and won't count</span>
+          </div>
+          <div class="instructions__step">
+            <span class="instructions__num">5</span>
+            <span>Complete 5 rounds to see your stats and performance rating</span>
+          </div>
+        </div>
+      </div>
+
       <!-- Reaction time readout -->
       <div class="result-display" id="result-display">
-        <div class="result-display__value" id="result-value">---</div>
-        <div class="result-display__unit" id="result-unit">ms</div>
+        <div class="result-display__value result-display__value--placeholder" id="result-value">---</div>
+        <div class="result-display__unit result-display__unit--hidden" id="result-unit">ms</div>
       </div>
 
       <div class="prompt-text" id="prompt-text">Click anywhere to start</div>
 
       <div class="divider"></div>
 
-      <!-- Stats panel — only meaningful after 5+ attempts -->
+      <!-- Performance evaluation — appears after 5 valid attempts -->
+      <div class="evaluation" id="evaluation" style="display:none;">
+        <div class="evaluation__rating" id="eval-rating"></div>
+        <div class="evaluation__detail" id="eval-detail"></div>
+      </div>
+
+      <!-- Stats panel -->
       <div class="stats" id="stats-panel">
         <div class="stats__notice" id="stats-notice">Complete 5 attempts to see statistics</div>
         <div class="stats__grid" id="stats-grid">
@@ -59,7 +89,7 @@
         </div>
       </div>
 
-      <!-- Attempt history log -->
+      <!-- Attempt history -->
       <div class="history" id="history-panel">
         <div class="history__title">Session Log</div>
         <div class="history__list" id="history-list"></div>
@@ -69,7 +99,6 @@
         <button class="reset-btn" id="reset-btn">Reset Session</button>
       </div>
     </div>
-
   </div>
 
   <style>
@@ -85,6 +114,7 @@
       --accent-stimulus: #4A9EFF;
       --accent-error: #E05555;
       --accent-success: #4CAF7D;
+      --accent-warning: #E0A030;
       --font-ui: 'Inter', sans-serif;
       --font-mono: 'JetBrains Mono', monospace;
       --radius: 8px;
@@ -115,8 +145,6 @@
 
     /* =========================================================
        3. LAYOUT
-       Desktop: fullscreen 3D + fixed right side panel.
-       Mobile (<768px): 3D on top + bottom sheet panel.
        ========================================================= */
     #canvas-container {
       position: fixed;
@@ -152,28 +180,38 @@
       right: 0;
       width: var(--panel-width);
       height: 100%;
-      background: rgba(15, 17, 23, 0.92);
-      border-left: 1px solid var(--border);
+      /* Near-transparent: the 3D scene bleeds through.
+         0.35 is the lowest we can go before secondary text
+         becomes unreadable against moving wireframe geometry. */
+      background: linear-gradient(
+        to right,
+        rgba(15, 17, 23, 0.08) 0%,
+        rgba(15, 17, 23, 0.35) 15%,
+        rgba(15, 17, 23, 0.45) 100%
+      );
+      border-left: 1px solid rgba(46, 49, 56, 0.2);
       display: flex;
       flex-direction: column;
       padding: 2rem 1.5rem;
       overflow-y: auto;
-      backdrop-filter: blur(12px);
-      -webkit-backdrop-filter: blur(12px);
+      backdrop-filter: blur(6px);
+      -webkit-backdrop-filter: blur(6px);
     }
 
     .divider {
       width: 100%;
       height: 1px;
-      background: var(--border);
+      background: rgba(46, 49, 56, 0.25);
       margin: 0.25rem 0 1.25rem;
     }
 
     /* =========================================================
        4. COMPONENTS
        ========================================================= */
+
+    /* Header */
     .header {
-      margin-bottom: 1.5rem;
+      margin-bottom: 1.25rem;
     }
 
     .header__title {
@@ -190,21 +228,107 @@
       opacity: 0.5;
     }
 
+    /* Instructions */
+    .instructions {
+      background: rgba(28, 31, 38, 0.25);
+      border: 1px solid rgba(46, 49, 56, 0.2);
+      border-radius: var(--radius);
+      padding: 1rem;
+      margin-bottom: 1.25rem;
+    }
+
+    .instructions--hidden {
+      display: none;
+    }
+
+    .instructions__title {
+      font-size: 0.625rem;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.12em;
+      color: var(--text-secondary);
+      margin-bottom: 0.75rem;
+    }
+
+    .instructions__steps {
+      display: flex;
+      flex-direction: column;
+      gap: 0.5rem;
+    }
+
+    .instructions__step {
+      display: flex;
+      align-items: flex-start;
+      gap: 0.625rem;
+      font-size: 0.75rem;
+      color: var(--text-secondary);
+      line-height: 1.4;
+    }
+
+    .instructions__step strong {
+      color: var(--accent-stimulus);
+      font-weight: 600;
+    }
+
+    .instructions__num {
+      flex-shrink: 0;
+      width: 1.25rem;
+      height: 1.25rem;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      border-radius: 50%;
+      background: rgba(46, 49, 56, 0.4);
+      color: var(--text-primary);
+      font-family: var(--font-mono);
+      font-size: 0.625rem;
+      font-weight: 600;
+    }
+
+    /* Result display — fixed height prevents layout shift when
+       content changes between numbers, placeholders, and error text */
     .result-display {
       display: flex;
       align-items: baseline;
+      justify-content: flex-start;
       gap: 0.375rem;
       margin-bottom: 0.375rem;
+      min-height: 3.25rem;
       transition: color var(--transition-med);
     }
 
     .result-display__value {
       font-family: var(--font-mono);
-      font-size: 3rem;
+      font-size: 2.75rem;
       font-weight: 700;
       line-height: 1;
       font-variant-numeric: tabular-nums;
       letter-spacing: -0.02em;
+      transition: font-size var(--transition-fast);
+    }
+
+    /* Placeholder state: '---' shown during idle/waiting.
+       Smaller and muted so it reads as an empty slot,
+       not a data point competing for attention. */
+    .result-display__value--placeholder {
+      font-size: 1.75rem;
+      font-weight: 500;
+      opacity: 0.35;
+    }
+
+    /* Error state: 'TOO EARLY' is a long string that would
+       overflow the panel at full size. Scale it down so it
+       fits within the fixed container without wrapping. */
+    .result-display__value--error {
+      font-size: 1.375rem;
+      font-weight: 600;
+    }
+
+    /* Stimulus state: '!!!' should be punchy but not as
+       large as the actual result number */
+    .result-display__value--stimulus {
+      font-size: 2rem;
+      font-weight: 700;
     }
 
     .result-display__unit {
@@ -212,9 +336,15 @@
       font-size: 1rem;
       font-weight: 400;
       color: var(--text-secondary);
-      transition: color var(--transition-med);
+      transition: color var(--transition-med), opacity var(--transition-fast);
     }
 
+    /* Hide 'ms' unit when showing non-numeric content */
+    .result-display__unit--hidden {
+      opacity: 0;
+    }
+
+    /* Prompt text */
     .prompt-text {
       font-size: 0.875rem;
       font-weight: 500;
@@ -224,10 +354,40 @@
       margin-bottom: 1.25rem;
     }
 
+    /* Performance evaluation */
+    .evaluation {
+      background: rgba(28, 31, 38, 0.25);
+      border: 1px solid rgba(46, 49, 56, 0.2);
+      border-radius: var(--radius);
+      padding: 1rem;
+      margin-bottom: 1rem;
+      text-align: center;
+    }
+
+    .evaluation__rating {
+      font-family: var(--font-mono);
+      font-size: 0.9375rem;
+      font-weight: 700;
+      margin-bottom: 0.375rem;
+    }
+
+    .evaluation__detail {
+      font-size: 0.6875rem;
+      color: var(--text-secondary);
+      line-height: 1.45;
+    }
+
+    .evaluation--excellent .evaluation__rating { color: var(--accent-success); }
+    .evaluation--fast .evaluation__rating { color: var(--accent-success); }
+    .evaluation--average .evaluation__rating { color: var(--accent-stimulus); }
+    .evaluation--slow .evaluation__rating { color: var(--accent-warning); }
+    .evaluation--very-slow .evaluation__rating { color: var(--accent-error); }
+
+    /* Stats panel */
     .stats {
       width: 100%;
-      background: var(--surface);
-      border: 1px solid var(--border);
+      background: rgba(28, 31, 38, 0.25);
+      border: 1px solid rgba(46, 49, 56, 0.2);
       border-radius: var(--radius);
       padding: 1rem;
       margin-bottom: 1.25rem;
@@ -262,14 +422,10 @@
       font-variant-numeric: tabular-nums;
     }
 
-    .stats__value--best {
-      color: var(--accent-success);
-    }
+    .stats__value--best { color: var(--accent-success); }
+    .stats__value--worst { color: var(--accent-error); }
 
-    .stats__value--worst {
-      color: var(--accent-error);
-    }
-
+    /* History */
     .history {
       width: 100%;
       display: none;
@@ -290,7 +446,7 @@
       display: flex;
       flex-direction: column;
       gap: 0.3rem;
-      max-height: 180px;
+      max-height: 150px;
       overflow-y: auto;
     }
 
@@ -299,8 +455,8 @@
       justify-content: space-between;
       align-items: center;
       padding: 0.375rem 0.625rem;
-      background: var(--surface);
-      border: 1px solid var(--border);
+      background: rgba(28, 31, 38, 0.2);
+      border: 1px solid rgba(46, 49, 56, 0.15);
       border-radius: calc(var(--radius) * 0.5);
       font-size: 0.75rem;
     }
@@ -321,10 +477,11 @@
       color: var(--accent-error);
     }
 
+    /* Panel footer */
     .panel-footer {
       margin-top: auto;
       padding-top: 1rem;
-      border-top: 1px solid var(--border);
+      border-top: 1px solid rgba(46, 49, 56, 0.2);
     }
 
     .reset-btn {
@@ -333,7 +490,7 @@
       font-weight: 500;
       color: var(--text-secondary);
       background: transparent;
-      border: 1px solid var(--border);
+      border: 1px solid rgba(46, 49, 56, 0.3);
       border-radius: var(--radius);
       padding: 0.5rem 1rem;
       cursor: pointer;
@@ -343,7 +500,7 @@
 
     .reset-btn:hover {
       color: var(--text-primary);
-      border-color: var(--text-secondary);
+      border-color: rgba(139, 144, 154, 0.4);
     }
 
     /* =========================================================
@@ -406,7 +563,7 @@
     }
 
     /* =========================================================
-       7. RESPONSIVE — mobile bottom sheet
+       7. RESPONSIVE
        ========================================================= */
     @media (max-width: 768px) {
       .side-panel {
@@ -417,16 +574,17 @@
         width: 100%;
         height: 55%;
         border-left: none;
-        border-top: 1px solid var(--border);
+        border-top: 1px solid rgba(46, 49, 56, 0.2);
         padding: 1.25rem;
       }
 
-      .result-display__value {
-        font-size: 2.5rem;
-      }
+      .result-display__value { font-size: 2.25rem; }
+      .result-display__value--placeholder { font-size: 1.5rem; }
+      .result-display__value--error { font-size: 1.125rem; }
+      .result-display__value--stimulus { font-size: 1.75rem; }
 
       .history__list {
-        max-height: 120px;
+        max-height: 100px;
       }
     }
 
@@ -436,9 +594,10 @@
         padding: 1rem;
       }
 
-      .result-display__value {
-        font-size: 2.25rem;
-      }
+      .result-display__value { font-size: 2rem; }
+      .result-display__value--placeholder { font-size: 1.375rem; }
+      .result-display__value--error { font-size: 1rem; }
+      .result-display__value--stimulus { font-size: 1.5rem; }
     }
   </style>
 
@@ -452,7 +611,8 @@
       currentDelay: null,
       stimulusTimeoutId: null,
       results: [],
-      stats: { average: null, best: null, worst: null, validCount: 0 }
+      stats: { average: null, best: null, worst: null, validCount: 0 },
+      instructionsDismissed: false
     };
 
     /* ===========================================================
@@ -462,6 +622,54 @@
       let dom = {};
       let onPhaseChange = null;
 
+      /* --- Reaction time evaluation tiers ---
+         Based on published visual reaction time data for adults.
+         IMPORTANT CAVEAT: browser input pipelines add 5–30ms of
+         latency (event loop, compositor, display vsync) that the
+         user cannot control. These thresholds account for that by
+         being ~20ms more generous than lab-grade benchmarks.
+
+         Lab median for simple visual RT is ~250ms (Jain et al. 2015,
+         Humansenchmark aggregate). We shift up slightly:
+           < 180ms : Excellent (top ~5%, or possibly anticipation)
+           < 230ms : Fast (top ~25%)
+           < 300ms : Average (middle ~50%)
+           < 400ms : Below average
+           ≥ 400ms : Slow
+      */
+      var TIERS = [
+        {
+          max: 180,
+          cssClass: 'evaluation--excellent',
+          label: 'Excellent',
+          detail: 'Top-tier reactions. At this speed, some responses may be anticipatory rather than reactive — which is a skill in itself.'
+        },
+        {
+          max: 230,
+          cssClass: 'evaluation--fast',
+          label: 'Fast',
+          detail: 'Well above average. Consistent sub-230ms responses indicate strong visual processing speed.'
+        },
+        {
+          max: 300,
+          cssClass: 'evaluation--average',
+          label: 'Average',
+          detail: 'Typical adult visual reaction time. The median across most studies lands around 250ms.'
+        },
+        {
+          max: 400,
+          cssClass: 'evaluation--slow',
+          label: 'Below Average',
+          detail: 'Slower than typical. Fatigue, distraction, or device input lag can all contribute — try again when rested.'
+        },
+        {
+          max: Infinity,
+          cssClass: 'evaluation--very-slow',
+          label: 'Slow',
+          detail: 'Significantly slower than average. This can be caused by high device latency, multitasking, or physical fatigue.'
+        }
+      ];
+
       function init(phaseChangeCallback) {
         onPhaseChange = phaseChangeCallback;
 
@@ -469,6 +677,10 @@
         dom.resultValue = document.getElementById('result-value');
         dom.resultUnit = document.getElementById('result-unit');
         dom.promptText = document.getElementById('prompt-text');
+        dom.instructions = document.getElementById('instructions');
+        dom.evaluation = document.getElementById('evaluation');
+        dom.evalRating = document.getElementById('eval-rating');
+        dom.evalDetail = document.getElementById('eval-detail');
         dom.statsPanel = document.getElementById('stats-panel');
         dom.statsNotice = document.getElementById('stats-notice');
         dom.statsGrid = document.getElementById('stats-grid');
@@ -501,13 +713,53 @@
 
       function handleAppClick(event) {
         if (event.target.closest('#reset-btn')) return;
+        dismissInstructions();
         advanceGame();
       }
 
       function handleKeyDown(event) {
         if (event.code === 'Space' || event.code === 'Enter') {
           event.preventDefault();
+          dismissInstructions();
           advanceGame();
+        }
+      }
+
+      /* Hide instructions on first interaction.
+         They've served their purpose — keeping them visible
+         wastes panel space during active play. */
+      function dismissInstructions() {
+        if (!AppState.instructionsDismissed) {
+          AppState.instructionsDismissed = true;
+          dom.instructions.classList.add('instructions--hidden');
+        }
+      }
+
+      /* Helper: sets the result display text and applies the correct
+         modifier class based on content type. Centralises the logic
+         so every state transition gets consistent styling. */
+      function setResultDisplay(text, mode) {
+        dom.resultValue.textContent = text;
+        /* Strip all modifier classes */
+        dom.resultValue.className = 'result-display__value';
+        dom.resultUnit.className = 'result-display__unit';
+
+        switch (mode) {
+          case 'placeholder':
+            dom.resultValue.classList.add('result-display__value--placeholder');
+            dom.resultUnit.classList.add('result-display__unit--hidden');
+            break;
+          case 'stimulus':
+            dom.resultValue.classList.add('result-display__value--stimulus');
+            dom.resultUnit.classList.add('result-display__unit--hidden');
+            break;
+          case 'error':
+            dom.resultValue.classList.add('result-display__value--error');
+            dom.resultUnit.classList.add('result-display__unit--hidden');
+            break;
+          case 'result':
+            /* No modifier — full size number with visible unit */
+            break;
         }
       }
 
@@ -523,8 +775,9 @@
         AppState.stats = { average: null, best: null, worst: null, validCount: 0 };
         AppState.stimulusTimestamp = null;
         AppState.currentDelay = null;
+        AppState.instructionsDismissed = false;
 
-        dom.resultValue.textContent = '---';
+        setResultDisplay('---', 'placeholder');
         dom.promptText.textContent = 'Click anywhere to start';
         dom.statsNotice.style.display = '';
         dom.statsGrid.style.display = 'none';
@@ -534,6 +787,9 @@
         dom.statCount.textContent = '0';
         dom.historyList.innerHTML = '';
         dom.historyPanel.style.display = 'none';
+        dom.evaluation.style.display = 'none';
+        dom.evaluation.className = 'evaluation';
+        dom.instructions.classList.remove('instructions--hidden');
 
         setPhase('idle');
         dom.app.focus();
@@ -556,17 +812,14 @@
       }
 
       function startWaiting() {
-        /* Random delay computed ONCE: 2000–5000ms.
-           Stored in state so it's never recomputed mid-round. */
         AppState.currentDelay = 2000 + Math.random() * 3000;
         AppState.stimulusTimestamp = null;
 
-        dom.resultValue.textContent = '---';
+        setResultDisplay('---', 'placeholder');
         dom.promptText.textContent = 'Wait for the signal\u2026';
 
         setPhase('waiting');
 
-        /* Store timeout ID to cancel on false start or reset */
         AppState.stimulusTimeoutId = setTimeout(showStimulus, AppState.currentDelay);
       }
 
@@ -575,7 +828,7 @@
         /* performance.now() — monotonic, sub-ms precision */
         AppState.stimulusTimestamp = performance.now();
 
-        dom.resultValue.textContent = '!!!';
+        setResultDisplay('!!!', 'stimulus');
         dom.promptText.textContent = 'CLICK NOW!';
 
         setPhase('stimulus');
@@ -589,7 +842,7 @@
 
         AppState.results.push({ ms: null, falseStart: true, timestamp: Date.now() });
 
-        dom.resultValue.textContent = 'TOO EARLY';
+        setResultDisplay('TOO EARLY', 'error');
         dom.promptText.textContent = 'False start — click to try again';
 
         updateHistory();
@@ -597,18 +850,17 @@
       }
 
       function registerReaction() {
-        /* Delta from two performance.now() calls — monotonic,
-           unaffected by system clock drift */
         var reactionMs = performance.now() - AppState.stimulusTimestamp;
         var rounded = Math.round(reactionMs);
 
         AppState.results.push({ ms: rounded, falseStart: false, timestamp: Date.now() });
 
-        dom.resultValue.textContent = rounded.toString();
+        setResultDisplay(rounded.toString(), 'result');
         dom.promptText.textContent = 'Click to go again';
 
         recalculateStats();
         updateStats();
+        updateEvaluation();
         updateHistory();
         setPhase('result');
       }
@@ -635,7 +887,6 @@
       function updateStats() {
         dom.statCount.textContent = AppState.stats.validCount.toString();
 
-        /* 5-attempt threshold: a UX decision, not a statistical one */
         if (AppState.stats.validCount >= 5) {
           dom.statsNotice.style.display = 'none';
           dom.statsGrid.style.display = 'grid';
@@ -650,6 +901,33 @@
             ' until statistics';
           dom.statsGrid.style.display = 'none';
         }
+      }
+
+      /* Show performance evaluation once we have 5+ valid results.
+         The evaluation updates live as more results come in — it's
+         not a one-time verdict. The average can shift tier-to-tier
+         as the user warms up or fatigues. */
+      function updateEvaluation() {
+        if (AppState.stats.validCount < 5) {
+          dom.evaluation.style.display = 'none';
+          return;
+        }
+
+        var avg = AppState.stats.average;
+        var tier = null;
+
+        for (var i = 0; i < TIERS.length; i++) {
+          if (avg < TIERS[i].max) {
+            tier = TIERS[i];
+            break;
+          }
+        }
+
+        /* Strip any previous tier class, apply new one */
+        dom.evaluation.className = 'evaluation ' + tier.cssClass;
+        dom.evaluation.style.display = '';
+        dom.evalRating.textContent = tier.label + ' — ' + avg + ' ms avg';
+        dom.evalDetail.textContent = tier.detail;
       }
 
       function updateHistory() {
@@ -686,10 +964,6 @@
 
     /* ===========================================================
        3. VISUAL LAYER IIFE
-       The 3D scene is now the visual hero. The camera is offset
-       so the icosahedron appears centered in the open viewport
-       area (left of the side panel on desktop, above the bottom
-       sheet on mobile).
        =========================================================== */
     const VisualLayer = (function () {
       let scene, camera, renderer;
@@ -743,28 +1017,18 @@
         animate();
       }
 
-      /* Offset the camera so the 3D scene appears centered in the
-         open area (viewport minus side panel), not the full viewport.
-         Without this, the icosahedron would sit half-behind the panel
-         on desktop, which defeats the "3D is the hero" intent. */
       function updateSceneCenter() {
         if (window.innerWidth > 768) {
           var panel = document.getElementById('side-panel');
           var panelW = panel ? panel.offsetWidth : 340;
           var openW = window.innerWidth - panelW;
-
-          /* Convert the center of the open area to NDC [-1, 1],
-             then to world-space X at the camera's Z distance.
-             fov/2 = 30deg, so world half-width at z=28 is
-             tan(30) * 28 * aspect. */
           var openCenterFrac = (openW / 2) / window.innerWidth;
           var ndcX = openCenterFrac * 2 - 1;
           var aspect = window.innerWidth / window.innerHeight;
           var worldHalfW = Math.tan(THREE.MathUtils.degToRad(30)) * 28 * aspect;
           camera.position.x = -(ndcX * worldHalfW);
+          camera.position.y = 0;
         } else {
-          /* Mobile: panel is at the bottom. Offset camera upward
-             so the scene centers in the top portion. */
           var openH = window.innerHeight * 0.45;
           var openCenterYFrac = (openH / 2) / window.innerHeight;
           var ndcY = openCenterYFrac * 2 - 1;
@@ -775,10 +1039,6 @@
       }
 
       function createCentralShape() {
-        /* Prominent wireframe icosahedron. Detail 1 = 80 faces,
-           enough geometry to read as spherical without visual noise.
-           Opacity 0.35 — substantially higher than before since
-           no text overlaps the 3D area anymore. */
         var geo = new THREE.IcosahedronGeometry(6.5, 1);
         var mat = new THREE.MeshBasicMaterial({
           color: currentColor.clone(),
@@ -794,9 +1054,6 @@
       function createOrbiters() {
         var cubeGeo = new THREE.BoxGeometry(1, 1, 1);
 
-        /* Hand-tuned orbit configs: radii, speeds, and inclinations
-           chosen so paths don't overlap and the composition reads
-           as an orbital system at camera.position.z = 28. */
         var configs = [
           { radius: 10, speed: 0.30, inc: 0.4,   phase: 0,              s: 0.9,  op: 0.30 },
           { radius: 12, speed: 0.22, inc: -0.6,  phase: Math.PI * 0.7,  s: 0.65, op: 0.25 },
@@ -856,7 +1113,6 @@
           pulsePhase += dt * 2.5;
         }
 
-        /* --- Central icosahedron --- */
         centralMesh.rotation.x += CENTRAL_ROT_SPEED;
         centralMesh.rotation.y += CENTRAL_ROT_SPEED * 0.7;
         centralMesh.material.color.copy(currentColor);
@@ -868,7 +1124,6 @@
           centralMesh.material.opacity = 0.35;
         }
 
-        /* --- Orbiting cubes --- */
         for (var i = 0; i < orbiters.length; i++) {
           var orb = orbiters[i];
           var d = orb.userData;
@@ -876,11 +1131,9 @@
           var angle = elapsed * d.orbitSpeed + d.phaseOffset;
           var r = d.orbitRadius;
 
-          /* Elliptical: X full, Z at 70% for depth */
           var x = r * Math.cos(angle);
           var z = r * 0.7 * Math.sin(angle);
 
-          /* Inclination tilts the orbital plane */
           var cosI = Math.cos(d.inclination);
           var sinI = Math.sin(d.inclination);
           orb.position.set(x, z * sinI, z * cosI);
