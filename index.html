@@ -584,10 +584,23 @@
         left: 0;
         right: 0;
         width: 100%;
-        height: 55%;
+        height: 50%;
         border-left: none;
-        border-top: 1px solid rgba(46, 49, 56, 0.2);
+        border-top: none;
         padding: 1.25rem;
+        /* On mobile the panel is a bottom sheet — semi-transparent
+           looks bad here because wireframe lines cross the text.
+           Use a solid base with a soft top edge that fades from
+           transparent to opaque over 40px, creating a clean
+           separation without a hard line. */
+        background: linear-gradient(
+          to bottom,
+          rgba(15, 17, 23, 0) 0%,
+          rgba(15, 17, 23, 0.85) 30px,
+          rgba(15, 17, 23, 0.95) 100%
+        );
+        backdrop-filter: blur(10px);
+        -webkit-backdrop-filter: blur(10px);
       }
 
       .result-display__value { font-size: 2.25rem; }
@@ -602,7 +615,7 @@
 
     @media (max-width: 480px) {
       .side-panel {
-        height: 60%;
+        height: 55%;
         padding: 1rem;
       }
 
@@ -1042,6 +1055,8 @@
 
       function updateSceneCenter() {
         if (window.innerWidth > 768) {
+          /* Desktop: offset camera X so scene centers in the
+             open area left of the side panel */
           var panel = document.getElementById('side-panel');
           var panelW = panel ? panel.offsetWidth : 340;
           var openW = window.innerWidth - panelW;
@@ -1052,12 +1067,23 @@
           camera.position.x = -(ndcX * worldHalfW);
           camera.position.y = 0;
         } else {
-          var openH = window.innerHeight * 0.45;
-          var openCenterYFrac = (openH / 2) / window.innerHeight;
-          var ndcY = openCenterYFrac * 2 - 1;
+          /* Mobile: panel is a bottom sheet taking ~50% of the
+             viewport. The 3D scene should be centered in the TOP
+             half — meaning the vertical center of the visible
+             open area, which is at 25% from the top of the screen.
+
+             In NDC: viewport center = 0, top = +1, bottom = -1.
+             25% from top = 75% from bottom = NDC Y of +0.5.
+             Convert to world-space Y at camera z=28, fov=60:
+             worldHalfH = tan(30°) * 28 ≈ 16.17
+             Target Y = 0.5 * 16.17 ≈ 8.08
+
+             We shift the camera up by this amount so the scene
+             origin (where the icosahedron sits) appears at that
+             screen position. */
           var worldHalfH = Math.tan(THREE.MathUtils.degToRad(30)) * 28;
           camera.position.x = 0;
-          camera.position.y = -(ndcY * worldHalfH);
+          camera.position.y = -(worldHalfH * 0.5);
         }
       }
 
